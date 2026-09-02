@@ -49,6 +49,8 @@ export * from './message.ts'
 export * from './retry-policy.ts'
 export { BlockAssembler } from './assembler.ts'
 export { callConfigEquals, isAgentLoopRequest, markAgentLoopRequest } from './call-config.ts'
+/** Deep-freeze a plain value tree; re-exported for plugin consumers (e.g. oss-prompt-optimizer). */
+export { deepFreeze } from '@deepseek-ai/dsh-util-values'
 export type { LlmCallConfig, LlmCallConfigAdapterDefaults } from './call-config.ts'
 
 declare module '@deepseek-ai/cordis' {
