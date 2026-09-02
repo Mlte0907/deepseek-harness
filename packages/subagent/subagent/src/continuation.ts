@@ -177,7 +177,29 @@ interface ContinuationHost {
    * @returns the observer whose edges this epoch publishes.
    */
   observeActivation(provider: string, childId: SessionId, parent: Agent): ActivationObserver
+  /**
+   * Per-continuable-child setup hooks registered by other plugins through
+   * `ctx.subagents.registerContinuableSetup`, read at each materialization
+   * (fresh creation and cold resume alike).
+   * @returns the hooks to run inside the child's own creation context, in
+   * registration order.
+   */
+  continuableSetups(): readonly ContinuableSetup[]
 }
+
+/**
+ * One plugin-supplied setup hook for continuable children.
+ *
+ * The hook receives the child Agent's scoped creation context — the same
+ * context the internal composition setup runs under, so `childCtx.agent`,
+ * `childCtx.on(...)` and the child's session all resolve — and returns an
+ * optional cleanup that runs when the child's activation is disposed.
+ * Returning nothing (or a non-function) registers no cleanup. A hook applies
+ * to both freshly created and cold-resumed children, so it must re-derive its
+ * own state from the child (typically its session events) rather than assume
+ * the creation path.
+ */
+export type ContinuableSetup = (childCtx: Context) => (() => void) | void
 
 /**
  * One residency epoch for a reconstructed continuable child Agent. It directly
@@ -1230,6 +1252,14 @@ export class SubagentContinuationManager {
         appendDelegatedPolicyOverrides(child.session, create.delegatedPolicies)
       }
       applyChildComposition(childCtx, parent, inputs.composition)
+      // Plugin hooks run last, so their view of the child already includes the
+      // delegated policy seed and the inherited composition. Each returned
+      // cleanup is owned by the child's own scope: it unwinds with the
+      // activation, which is the cold-resume/teardown edge the hooks exist for.
+      for (const hook of this.host.continuableSetups()) {
+        const cleanup = hook(childCtx)
+        if (typeof cleanup === 'function') childCtx.effect(() => cleanup)
+      }
     }
     const observer = this.host.observeActivation(provider, childId, parent)
     // Agent creation owns rollback before handle transfer. A rejection leaves

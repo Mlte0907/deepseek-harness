@@ -66,6 +66,7 @@ import { createActivationObserver, createLifecycleEmitter, observeRun } from './
 import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
 import SubagentContinuationManager from './continuation.ts'
 import type {
+  ContinuableSetup,
   ContinuableStart,
   ContinuableStartSpec,
   SubagentInterruptAuthority,
@@ -121,6 +122,7 @@ export {
 export type { ChildComposition, DelegatedPolicyOverrides } from './child-agent.ts'
 export type {
   AgentMessageSource,
+  ContinuableSetup,
   ContinuableStart,
   ContinuableStartSpec,
   SubagentInterruptAuthority,
@@ -191,6 +193,11 @@ export class SubagentRuntime extends TypertRemoteService {
   private providers = new Map<string, SubagentProvider>()
   private continuations: SubagentContinuationManager | undefined
   /**
+   * Plugin-supplied continuable-child setup hooks, applied at every
+   * materialization in registration order.
+   */
+  private continuableSetupHooks: ContinuableSetup[] = []
+  /**
    * The contained lifecycle-edge publisher. Built here because scoped dispatch
    * keys its carrier by this exact service instance, whose own context filter
    * composes into the carrier.
@@ -204,6 +211,7 @@ export class SubagentRuntime extends TypertRemoteService {
       const manager = new SubagentContinuationManager(childCtx, {
         prepareContinuable: (name, request) => this.prepareContinuable(name, request),
         observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
+        continuableSetups: () => this.continuableSetupHooks,
       })
       this.continuations = manager
       childCtx.effect(() => () => {
@@ -228,6 +236,27 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart> {
     return this.requireContinuations().startContinuable(spec)
+  }
+
+  /**
+   * Register a setup hook that runs inside every continuable child's own
+   * creation context, on fresh creation and on cold resume alike.
+   *
+   * Hooks see the child after its delegated policy seed and inherited
+   * composition are applied, and return an optional cleanup the activation
+   * disposes with the child. A hook must re-derive what it needs from the
+   * child context (its Agent and session events), because a cold resume
+   * reaches the same hook without the original creation inputs.
+   * @param setup - the hook to add; called once per materialized child.
+   * @returns a disposer that removes the hook; the cleanup functions it
+   * already returned stay owned by their activations.
+   */
+  registerContinuableSetup(setup: ContinuableSetup): () => void {
+    this.continuableSetupHooks.push(setup)
+    return () => {
+      const index = this.continuableSetupHooks.indexOf(setup)
+      if (index >= 0) this.continuableSetupHooks.splice(index, 1)
+    }
   }
 
   /**
