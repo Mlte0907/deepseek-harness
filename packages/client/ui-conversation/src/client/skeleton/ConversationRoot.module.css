@@ -66,6 +66,40 @@
   min-height: 32px;
 }
 
+/* Narrow viewports (mobile web / remote): the breadcrumb gets a full row so
+   long session titles stay readable, and the trailing controls (subagent
+   catalog, autonomous mode, plugin header actions, utilities) wrap onto the
+   following line instead of squeezing the title down to an ellipsis. */
+@media (max-width: 720px) {
+  .titleRow {
+    display: grid;
+    grid-template-columns: 1fr;
+    row-gap: 4px;
+  }
+
+  .titleCluster {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .crumbs {
+    flex: 1 1 100%;
+  }
+
+  .crumb {
+    max-width: none;
+  }
+
+  .headerActions {
+    flex: 1 1 auto;
+    overflow-x: auto;
+  }
+
+  .headerUtilities {
+    margin-left: 0;
+  }
+}
+
 .titleCluster {
   display: flex;
   flex: 1;
