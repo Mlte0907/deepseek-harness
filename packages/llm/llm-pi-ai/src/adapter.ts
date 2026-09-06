@@ -380,7 +380,15 @@ export class PiAiAdapter extends LlmAdapter {
         signal: watchdog.signal,
         // Profile headers are deployment-owned; attribution names are
         // Harness-owned and therefore win collisions.
-        headers: requestHeaders(profile.headers),
+        // x-opencode-session: gateway (OpenCode Go) rejects requests without a
+        // stable per-conversation id; the session id is Harness-owned, so it
+        // wins over any deployment-provided value of the same name.
+        headers: requestHeaders({
+          ...(profile.headers ?? {}),
+          ...(options.sessionId === undefined
+            ? {}
+            : { 'x-opencode-session': String(options.sessionId) }),
+        }),
       })
       const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
       let exhausted = false
