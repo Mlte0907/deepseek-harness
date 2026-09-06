@@ -417,26 +417,6 @@
         - pangu_recall
         - pangu_add_memory
 
-# ── dsh-teams-x (opt-in) ─────────────────────────────────────────────
-#
-# The TeamsX tool set (teamsx_create, teamsx_approve, teamsx_edit_plan,
-# teamsx_add_member, teamsx_remove_member, teamsx_create_task,
-# teamsx_reassign_task, teamsx_claim_task, teamsx_update_task,
-# teamsx_send_message, teamsx_status, teamsx_resume, teamsx_delete)
-# is registered by dsh-teams-x. State lives at <workspace>/.teams-x/<teamId>/.
-# This row is not isolated — the state dir is under the captain's workspace.
-#
-# See the persona above for the collaboration policy and the
-# "before spawning, analyze first" discipline.
-- id: dsh-teams-x
-  name: 'dsh-teams-x'
-  config:
-    memberProvider: spawn
-    memberModel: ''
-    executionPrompt: ''
-    memberMaxDepth: 1
-    maxMembers: 8
-
 # ── remaining model-facing rows ─────────────────────────────────────────────
 
 - id: tool-ask-user
