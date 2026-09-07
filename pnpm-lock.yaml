@@ -4670,6 +4670,8 @@ importers:
         specifier: workspace:^
         version: link:../../llm/token-meter
 
+  packages/compat/dsh-compat-shim: {}
+
   packages/context/agent-instructions:
     dependencies:
       '@deepseek-ai/dsh-util-values':

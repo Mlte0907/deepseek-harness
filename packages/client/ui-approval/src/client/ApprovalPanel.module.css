@@ -17,7 +17,8 @@
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
-.strip {
+/* Status bar */
+.statusBar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -28,15 +29,17 @@
   line-height: 18px;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  corner-shape: round;
-  background: var(--dsw-alias-state-warn-primary);
+.statusText {
+  flex: 1;
 }
 
-.body {
+.statusPill {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+/* Form fields */
+.fields {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -46,11 +49,33 @@
   padding: 12px 16px 0;
 }
 
+.fieldRow {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.fieldLabel {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  flex-shrink: 0;
+  min-width: 64px;
+}
+
+.fieldValue {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  word-break: break-all;
+}
+
 .headline {
   color: var(--dsw-alias-label-primary);
   font-size: 15px;
   font-weight: 500;
   line-height: 24px;
+  margin-top: 4px;
 }
 
 .command {
@@ -61,6 +86,7 @@
   word-break: break-all;
 }
 
+/* Action row */
 .actionRow {
   display: flex;
   justify-content: flex-end;

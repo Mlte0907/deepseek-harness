@@ -7,6 +7,15 @@ export const zh = {
   escalation: '工具 {toolName} 请求越权执行',
   reject: '拒绝',
   allowOnce: '允许一次',
+  statusLabel: '状态',
+  pending: '待审批',
+  approved: '已通过',
+  rejected: '已拒绝',
+  toolNameLabel: '工具名称',
+  callIdLabel: '调用编号',
+  reasonLabel: '审批原因',
+  sessionIdLabel: '会话编号',
+  timestampLabel: '申请时间',
 } satisfies Record<string, string>
 
 /** Approval dictionary key union. */
@@ -19,4 +28,13 @@ export const en = {
   escalation: 'Tool {toolName} requests privileged execution',
   reject: 'Reject',
   allowOnce: 'Allow once',
+  statusLabel: 'Status',
+  pending: 'Pending',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  toolNameLabel: 'Tool',
+  callIdLabel: 'Call ID',
+  reasonLabel: 'Reason',
+  sessionIdLabel: 'Session',
+  timestampLabel: 'Requested',
 } satisfies Record<ApprovalKey, string>

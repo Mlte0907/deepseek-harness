@@ -1,0 +1,12 @@
+# dsh-compat-shim bundle patch: mounts the compatibility shim plugin into the
+# host composition. The shim registers the legacy `apiProxy` service face
+# (bridged onto the api-gateway Remote services) so old plugins keep working
+# on hosts that removed the old RPC surface. The client half registers the
+# legacy `conversationEvents` face over uiConversation.events.
+#
+# NOTE: reconstructed 2026-09-05 — the original package.json and
+# cordis.patch.yml in this directory were lost (only lib/ remained), which
+# made the profile bundle row unresolvable and blocked backend startup.
+- insert:
+    - id: dsh-compat-shim
+      name: '@deepseek-ai/dsh-compat-shim'

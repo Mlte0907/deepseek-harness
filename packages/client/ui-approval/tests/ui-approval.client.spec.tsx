@@ -314,6 +314,15 @@ function panelProps(
     escalation: `Tool ${pending.toolName} asks`,
     reject: 'Reject',
     allowOnce: 'Allow once',
+    statusLabel: 'Status',
+    pending: 'Pending',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    toolNameLabel: 'Tool',
+    callIdLabel: 'Call ID',
+    reasonLabel: 'Reason',
+    sessionIdLabel: 'Session',
+    timestampLabel: 'Requested',
   }
   return {
     matched: pending,
@@ -347,7 +356,7 @@ describe('ApprovalPanel', () => {
     const renderSlot = vi.fn(() => <code>pnpm test</code>)
     render(<ApprovalPanel {...panelProps(pending, renderSlot)} />)
 
-    expect(screen.getByText('Run this exact command')).toBeTruthy()
+    expect(screen.getAllByText('Run this exact command')).toHaveLength(2)
     expect(screen.getByText('pnpm test')).toBeTruthy()
     expect(renderSlot).toHaveBeenCalledWith('conversation.approval.detail', {
       callId: 'call-1',
@@ -369,6 +378,46 @@ describe('ApprovalPanel', () => {
     })
     pending.abort(new Error('test cleanup'))
     await pending.result.catch(() => {})
+  })
+
+  it('renders form fields for tool name, session ID, call ID, and reason', () => {
+    const pending = new PendingApproval(id('s1'), {
+      toolName: 'bash',
+      callId: 'call-1' as ToolCallId,
+      reason: 'needs access',
+    })
+    const props = panelProps(pending)
+    render(<ApprovalPanel {...props} />)
+
+    expect(screen.getByText('Tool')).toBeTruthy()
+    expect(screen.getAllByText('bash')).toHaveLength(1)
+    expect(screen.getByText('Session')).toBeTruthy()
+    expect(screen.getByText('s1')).toBeTruthy()
+    expect(screen.getByText('Call ID')).toBeTruthy()
+    expect(screen.getByText('call-1')).toBeTruthy()
+    expect(screen.getByText('Reason')).toBeTruthy()
+    expect(screen.getAllByText('needs access')).toHaveLength(2)
+  })
+
+  it('renders session ID without optional call ID and reason fields', () => {
+    const pending = new PendingApproval(id('s2'), { toolName: 'read' })
+    const props = panelProps(pending)
+    render(<ApprovalPanel {...props} />)
+
+    expect(screen.getByText('Tool')).toBeTruthy()
+    expect(screen.getByText('read')).toBeTruthy()
+    expect(screen.getByText('Session')).toBeTruthy()
+    expect(screen.getByText('s2')).toBeTruthy()
+    expect(screen.queryByText('Call ID')).toBeNull()
+    expect(screen.queryByText('Reason')).toBeNull()
+  })
+
+  it('shows pending status initially', () => {
+    const pending = new PendingApproval(id('s1'), { toolName: 'bash' })
+    const props = panelProps(pending)
+    render(<ApprovalPanel {...props} />)
+
+    expect(screen.getAllByText('Pending')).toHaveLength(2)
   })
 })
 
