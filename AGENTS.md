@@ -105,6 +105,14 @@ pnpm run dev:web | dev:desktop  # build, then launch; Web also rebuilds client b
 make web|dev-web|desktop|dev-desktop|build  # the same commands; ARGS='--no-open' forwards options
 ```
 
+### Restarting the dsh web service
+
+Restart the dsh web service only with `dsh-restart` (`~/.local/bin/dsh-restart`, on PATH); never `pkill` or `kill` the `pnpm dsh web` / `apps/cli/src/bin.ts web` processes.
+
+`dsh-restart` stops the old instance, starts a fresh one, appends a timestamped banner to `~/.dsh/web.log`, waits for port 3080, and prints the rotated access token; a raw kill leaves no banner, so an outage cannot be attributed and the replacement token is never announced.
+
+Run it after profile, bundle, preset, or harness code edits, then read the printed token — previous tokens die with the old process. The user-level `~/.dsh/AGENTS.md` carries the same rule for sessions outside this workspace.
+
 ### Host sandbox failures
 
 If a required `gh`, `pnpm`, build, test, or generator command fails because the sandbox blocks credentials, network, IPC, watching, or nested `sandbox-exec`, retry unchanged with the narrowest host escalation. Require sandbox evidence; never bypass test failures or the product sandbox.

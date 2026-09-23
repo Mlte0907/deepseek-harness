@@ -18,16 +18,44 @@ const iconNames = Object.keys(icons)
 
 describe('product icon set', () => {
   it('exports regular and medium variants for all 92 public glyphs', () => {
-    expect(iconNames.length).toBe(184)
-    expect(iconNames.some(name => /\d+$/.test(name))).toBe(false)
-    const regular = iconNames.filter(name => name.endsWith('Regular')).map(name => name.slice(0, -'Regular'.length))
-    const medium = iconNames.filter(name => name.endsWith('Medium')).map(name => name.slice(0, -'Medium'.length))
+    const legacy = iconNames.filter(name => /\d+$/.test(name))
+    const modern = iconNames.filter(name => !/\d+$/.test(name))
+    expect(modern.length).toBe(184)
+    expect(legacy.sort()).toEqual([
+      'IconCheckOutline16', 'IconChevronDownOutline14', 'IconChevronLeftOutline14',
+      'IconChevronRightOutline14', 'IconChevronUpOutline14', 'IconCodeOutline16',
+      'IconCordisPluginOutline14', 'IconDownloadOutline16', 'IconFolderOpen16',
+      'IconFullscreenOutline16', 'IconLinkOutline14', 'IconLoadingOutline16',
+      'IconQuestionOutline14', 'IconRefreshOutline14', 'IconSearchOutline16',
+      'IconSparkle16', 'IconWarningOutline16',
+    ])
+    const regular = modern.filter(name => name.endsWith('Regular')).map(name => name.slice(0, -'Regular'.length))
+    const medium = modern.filter(name => name.endsWith('Medium')).map(name => name.slice(0, -'Medium'.length))
     expect(medium.sort()).toEqual(regular.sort())
-    expect(iconNames).toEqual(expect.arrayContaining([
+    expect(modern).toEqual(expect.arrayContaining([
       'IconMicrophoneOutlineRegular',
       'IconPlanOutlineRegular', 'IconCompactOutlineRegular', 'IconShieldOutlineRegular', 'IconDeliverDocRegular',
       'IconWarningTriangleOutlineRegular', 'IconCompareSplitOutlineRegular', 'IconCloseCircleFillRegular',
     ]))
+  })
+
+  it('legacy numeric names forward to their Regular counterpart at the numeric default size', () => {
+    for (const name of iconNames.filter(name => /\d+$/.test(name))) {
+      const Legacy = icons[name]!
+      const defaultSize = name.match(/(\d+)$/)![1]!
+      const Regular = icons[name.replace(/\d+$/, '') + 'Regular']!
+      expect(typeof Regular).toBe('function')
+
+      const bare = render(<Legacy />)
+      expect(bare.container.querySelector('svg')!.getAttribute('width')).toBe(defaultSize)
+      bare.unmount()
+
+      const sized = render(<Legacy size={20} />)
+      const regular = render(<Regular size={20} />)
+      expect(sized.container.innerHTML).toBe(regular.container.innerHTML)
+      sized.unmount()
+      regular.unmount()
+    }
   })
 
   it('draws the circled close as one currentColor knockout path in both weights', () => {
