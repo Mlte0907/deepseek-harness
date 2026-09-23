@@ -44,6 +44,9 @@ allowBuilds:
   # optional prebuilts are omitted. Upgrade all consumers together after the
   # replacement passes that build and the release packed-install check.
   koffi: true
+  # pnpm itself (the workspace devDependency) links its own binary in install.js;
+  # pnpm 12 added these lifecycle scripts, so the pin cannot install without them.
+  pnpm: true
   # The Python runtime deploy includes the reviewed workspace postinstall that
   # restores the executable bit on node-pty's macOS spawn helper.
   '@deepseek-ai/dsh-subprocess-local@file:packages/subprocess/subprocess-local': true
