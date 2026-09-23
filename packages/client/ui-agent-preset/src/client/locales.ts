@@ -21,6 +21,8 @@ export type AgentPresetSettingsKey =
   | 'presetMinimalDescription'
   | 'presetCordisName'
   | 'presetCordisDescription'
+  | 'presetAutonomousName'
+  | 'presetAutonomousDescription'
   | 'inUse'
   | 'selectionOffDefault'
   | 'noDescription'
@@ -56,6 +58,9 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   presetMinimalName: 'Minimal mode',
   presetMinimalDescription:
     'The agent works using only a terminal tool. Useful for testing and comparing its basic performance.',
+  presetAutonomousName: 'Autonomous mode',
+  presetAutonomousDescription:
+    'Explore first, act on reversible steps, track progress with the todo list, delegate read-only sweeps to subagents, verify before claiming done, and fall back to built-in tools (announced) when third-party services are absent.',
   presetCordisName: 'Creator mode',
   presetCordisDescription:
     'Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode.',
@@ -99,6 +104,9 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   presetPtcDescription: '包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。',
   presetMinimalName: '极简模式',
   presetMinimalDescription: 'Agent 仅使用终端工具完成任务，适合测试和对比其基础表现。',
+  presetAutonomousName: '自主模式',
+  presetAutonomousDescription:
+    '先探索后动手,可逆步骤自主推进,用任务清单跟踪进度,把只读探索分派给子代理,宣称完成前先验证;第三方服务缺席时回退到本预设内置工具并明示。',
   presetCordisName: '创造模式',
   presetCordisDescription: '用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。',
 
