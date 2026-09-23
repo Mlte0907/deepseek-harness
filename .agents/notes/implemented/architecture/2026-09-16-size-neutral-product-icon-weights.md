@@ -14,6 +14,8 @@ Every shared product glyph exports a size-neutral `Regular` and `Medium` compone
 
 `LinkIconRegular` and `LinkIconMedium`, `ReferenceIconRegular` and `ReferenceIconMedium`, and the three `PermissionIcon*Regular`/`PermissionIcon*Medium` pairs follow the same rule. Repository consumers use a named weight instead of a numeric export.
 
+The barrel additionally re-exports the seventeen numeric names that client bundles published against the pre-rename API still import, as wrappers around `Regular` that keep the numeric suffix as the default size; a published bundle cannot migrate from this repository, and a missing name reaches React as an undefined component. Repository code never imports the legacy names.
+
 Medium weight is reserved for deliberate emphasis: new-Session controls, Settings trigger and navigation icons, Appearance choices, the composer add button, and clickable artifact-link glyphs. Other existing consumers use Regular. The composer command menu uses `PermissionIconFullAccessRegular` for the permission command because that row names permission elevation rather than the current mode.
 
 ## Alternatives considered
@@ -26,4 +28,4 @@ Medium weight is reserved for deliberate emphasis: new-Session controls, Setting
 
 ## Consequences
 
-The icon API is intentionally breaking while pre-stable: every consumer names `Regular` or `Medium`, and former 14px call sites pass an explicit size when they share geometry with a 16px export. New product glyphs add both weights from one geometry definition. Fill-only artwork exposes both names for API consistency even when stroke weight does not change its appearance. The hierarchy choices above remain explicit at their render sites rather than becoming global size or opacity overrides.
+The icon API is intentionally breaking while pre-stable: every repository consumer names `Regular` or `Medium`, and former 14px call sites pass an explicit size when they share geometry with a 16px export. New product glyphs add both weights from one geometry definition. Fill-only artwork exposes both names for API consistency even when stroke weight does not change its appearance. The hierarchy choices above remain explicit at their render sites rather than becoming global size or opacity overrides.
