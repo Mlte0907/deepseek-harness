@@ -78,7 +78,7 @@ The model sees each tool under a stable server-qualified name: `mcp__<serverName
 - Two entries using the same server name: the later one fails to load with a clear error.
 - A server that lists the same tool twice gets its tool list rejected as invalid, and the previous tool set stays active.
 - The SDK owns discovery pagination and its page limit. A discovery failure preserves the previous tools; malformed cursor chains follow the SDK's behavior.
-- An update that conflicts with an already-registered tool name is rejected entirely — you never get a partial tool set from that server.
+- A same-client re-sync that conflicts with an already-registered tool name rolls back the attempted set and restores the previous generation. An initial sync or a replacement client rejects the conflict so the connection supervisor does not mark it healthy; neither path leaves a partial tool set.
 
 ### Calling tools and reading results
 
@@ -107,7 +107,7 @@ This section explains the design decisions behind the bridge and points at the c
 - **Server-qualified identity.** Every MCP tool has the stable identity `(serverName, rawName)`. The namespace is local configuration, never the remote `serverInfo.name` — the remote name is untrusted, not unique across deployments, and can change on upgrade, none of which may silently rename model-facing tools.
 - **Naming is a pinned contract.** Public names are pure functions of `(serverName, rawName)` and satisfy the DeepSeek function-name contract; lossy normalization appends a 12-hex-char SHA-256 hash so distinct identities never collapse. Session history and permission rules therefore survive HMR swaps, re-syncs, and other servers' changes.
 - **The raw name is the only wire name.** `tools/call` always receives the raw name; the public name is never sent to the server and never parsed to recover the raw name.
-- **Full generation or none.** Syncs swap generations atomically: a fetch failure keeps the previous generation, and a registration conflict rolls back the entire attempted generation.
+- **Full generation or none.** Syncs swap generations atomically: a fetch failure keeps the previous generation, a same-client registration conflict restores it, and a conflict without a safe previous generation rejects the synchronization.
 - **One canonical value, one projection.** The executor preserves the complete canonical MCP value and prepares ordered text/image content. `projectContent` installs that content before `tools/post-execute`, so retention sees real images. Subsequent content replacement, value replacement, and blocking remain authoritative.
 
 ### Source map
@@ -127,7 +127,7 @@ The exported `createMcpToolDefinition(ctx, options)` adapts an upstream tool sch
 
 `apply` resolves the reconnect policy, reserves the `serverName` inside the current registration scope, starts the supervisor, and awaits the initial connection plus discovery. Independent Agent scopes may reuse the same namespace because their tools and transports are isolated; a duplicate inside one scope fails at load. The supervisor serializes every sync — initial, notification, and reconnect — through one queue so two syncs can never interleave their dispose-previous/register-next swap. Disposal cancels pending reconnects, closes the negotiating transport or attached client, waits for the in-flight attempt and queued syncs to quiesce, and unregisters the current generation.
 
-The SDK receives tool-list changes through legacy notifications or a modern subscription. The supervisor queues each re-sync; a fetch failure keeps the previous generation registered, while a registration conflict rolls back the attempted generation. Each outage shares one attempt budget: after `maxAttempts` consecutive failures the tools are unregistered and reconnection stops, and a connection that stays up past `maxDelayMs` resets the budget.
+The SDK receives tool-list changes through legacy notifications or a modern subscription. The supervisor queues each re-sync; a fetch failure keeps the previous generation registered, a same-client registration conflict restores it, and a conflict involving a new client rejects the attempt. Each outage shares one attempt budget: after `maxAttempts` consecutive failures the tools are unregistered and reconnection stops, and a connection that stays up past `maxDelayMs` resets the budget.
 
 ### Tool execution internals
 

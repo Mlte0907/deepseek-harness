@@ -126,7 +126,9 @@ MCP 仅保证工具名在[单个服务器内](https://modelcontextprotocol.io/sp
 - 名为 `search` 的原生 harness 工具不受影响。
 - 重复的 `serverName` 配置使后加载的实例在启动时失败（见配置一节）。
 - 服务器列出重复的工具名属于无效工具列表：同步抛出异常，上一代注册保持不变。
-- 替换期间的注册表冲突只可能意味着外部工具占据了该服务器的 `mcp__<serverName>__` 命名空间：部分代注册被回滚（该服务器零工具），并以醒目日志记录错误。
+- 替换期间的注册表冲突只可能意味着外部工具占据了该服务器的 `mcp__<serverName>__` 命名空间：部分新世代被回滚，并以醒目日志记录错误。同一客户端的重新同步会恢复上一世代；初次同步或替换客户端会拒绝该次同步，连接监督器不会把冲突世代标记为健康。
+
+被记忆的 disposer map 与创建工具定义的 `Client` 绑定。只有同一客户端的重新同步才能复用定义；恢复已替换客户端的定义，会留下调用已失效 transport 的模型工具。
 
 SDK 接受符合协议的工具，并执行现代 HTTP header 声明检查。注册顺序不决定已接受名称的归属。
 
@@ -209,7 +211,7 @@ SDK 接受符合协议的工具，并执行现代 HTTP header 声明检查。注
 
 覆盖范围按层级列出；每项行为都放在能够表达它的最低成本层级。
 
-- **单元测试**（`tests/mcp-client.spec.ts`、`tests/apply.spec.ts`，mock MCP SDK）：`publicToolName` 算法（干净名称、规范化、截断加 hash、确定性、不同标识的分离）、raw 与 public 的协议纪律、跨服务器与原生工具共存、重复 `serverName` 加载失败与预留释放、无效工具列表拒绝、注册代切换/回滚、重新同步失败时保留上一代注册、无损规范结果、丰富内容混合顺序、格式错误批次原子性、确切能力／存储拒绝、明确的非图片诊断、post-execute 策略优先级、取消，以及配置 schema 校验。100% 逐文件覆盖率门禁约束该包。
+- **单元测试**（`tests/mcp-client.spec.ts`、`tests/apply.spec.ts`，mock MCP SDK）：`publicToolName` 算法（干净名称、规范化、截断加 hash、确定性、不同标识的分离）、raw 与 public 的协议纪律、跨服务器与原生工具共存、重复 `serverName` 加载失败与预留释放、无效工具列表拒绝、注册代切换/回滚、同客户端冲突恢复、跨世代冲突拒绝、过期世代提交保护、重新同步失败时保留上一代注册、无损规范结果、丰富内容混合顺序、格式错误批次原子性、确切能力／存储拒绝、明确的非图片诊断、post-execute 策略优先级、取消，以及配置 schema 校验。100% 逐文件覆盖率门禁约束该包。
 - **E2E**（`tests/mcp-client.e2e.ts`，无需密钥）：使用真实 MCP 协议对接仓库内的 fixture（测试前置数据）服务器、`@modelcontextprotocol/server-everything` 和 `@modelcontextprotocol/server-filesystem`（stdio 传输），以及进程内 `StreamableHTTPServerTransport` 服务器（Streamable HTTP 传输）——命名空间下的发现、带点号名称的端到端规范化、执行往返、持久图片保存／读取且 base64 只保留在规范值中、缺少图片路由时明确拒绝、重复 `serverName` 拒绝，以及 dispose。
 - **快照**：组装后的 ACP 示例负责传输可见的内联图片 transcript 与 PTC mode 图片转发 transcript；包 E2E 负责真实 MCP 协议，因为可运行快照必须保持无密钥且确定，而不是 spawn 第三方服务器包。MCP 工具卡片仍使用通用卡片兜底，无需包专属 UI 快照。
 

@@ -26,7 +26,10 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
 /** Resolved options relevant to tool bridging. */
 export interface ToolBridgeOptions {
-  /** Whether a registry conflict is contained or rejects this synchronization. */
+  /**
+   * Whether a same-client registry conflict is contained after restoration;
+   * conflicts without a restorable generation always reject.
+   */
   registrationFailure: 'contain' | 'throw'
   serverName: string
   toolCallTimeoutMs: number
@@ -34,6 +37,20 @@ export interface ToolBridgeOptions {
 
 /** State for one sync generation: the current set of disposers keyed by public name. */
 export type ToolDisposers = Map<string, () => void>
+
+/** Definitions and client that produced one successful disposer map. */
+interface ToolGeneration {
+  readonly client: Client
+  readonly definitions: Map<string, ToolDefinition>
+}
+
+/** Remembered generations let a same-client re-sync restore after a swap conflict. */
+const generationsByDisposers = new WeakMap<ToolDisposers, ToolGeneration>()
+
+/** Result of checking whether a failed swap has a safe previous generation to restore. */
+type RestoreResult =
+  | { readonly kind: 'restored'; readonly disposers: ToolDisposers }
+  | { readonly kind: 'unavailable' }
 
 /** Canonical MCP result exposed to PTC mode without discarding protocol blocks. */
 export type McpResult<Structured extends JsonValue = JsonValue> = {
@@ -97,16 +114,18 @@ export function publicToolName(serverName: string, rawName: string): string {
  *    and leaves the previous generation registered untouched.
  * 2. Swap: dispose the previous generation, register the new one. A registry
  *    conflict here can only mean a foreign registration squats on this
- *    server's `mcp__<serverName>__` namespace — the partial generation is
- *    rolled back (zero tools from this server) and logged. Initial strict
- *    synchronization may propagate the conflict so its parent transaction
- *    rejects; ordinary clients and later re-syncs return an empty map.
+ *    server's `mcp__<serverName>__` namespace — the partial new generation is
+ *    rolled back. A same-client re-sync restores the previous generation; an
+ *    initial sync or a replacement client has no safe definition set to
+ *    restore and rejects so the connection supervisor can retry or report it.
  *
  * @param client - Connected MCP Client instance used to list and call tools.
  * @param ctx - Cordis context providing the `tools` service for registration.
  * @param opts - Bridge options: server namespace and per-call timeout.
  * @param previous - Disposer map from the prior sync generation; disposed
  *   during the swap phase (only after the fetch phase succeeded).
+ * @param canCommit - Check that the client generation still owns the registry
+ *   after discovery and before the swap.
  * @returns A map of registered public tool names to their unregister
  *   disposers — the exact set of live registrations owned by this server.
  */
@@ -115,6 +134,7 @@ export async function syncTools(
   ctx: Context,
   opts: ToolBridgeOptions,
   previous: ToolDisposers,
+  canCommit: () => boolean = () => true,
 ): Promise<ToolDisposers> {
   // Phase 1: fetch and build the next generation without touching the registry.
   const definitions = new Map<string, ToolDefinition>()
@@ -143,6 +163,11 @@ export async function syncTools(
   }
 
   // Phase 2: swap generations.
+  if (!canCommit()) {
+    throw new Error(
+      `mcp-client(${opts.serverName}): tool discovery completed after its connection generation became stale`,
+    )
+  }
   for (const dispose of previous.values()) dispose()
   const disposers: ToolDisposers = new Map()
   try {
@@ -151,14 +176,66 @@ export async function syncTools(
     }
   } catch (error) {
     // A conflict on an `mcp__<serverName>__`-qualified name means a foreign
-    // registration occupies this server's namespace. Roll back so the model
-    // sees either the full generation or none of it — never a partial set.
+    // registration occupies this server's namespace. Drop the partial new
+    // generation before deciding whether the previous one is safe to restore.
     for (const dispose of disposers.values()) dispose()
-    ctx.logger.error(`mcp-client(${opts.serverName}): tool registration failed, no tools registered: ${String(error)}`)
-    if (opts.registrationFailure === 'throw') throw error
-    return new Map()
+    let restoration: RestoreResult
+    try {
+      restoration = restorePreviousGeneration(ctx, previous, client)
+    } catch (restoreError) {
+      ctx.logger.error(
+        `mcp-client(${opts.serverName}): previous tool generation could not be restored: ${String(restoreError)}`,
+      )
+      throw restoreError
+    }
+    if (restoration.kind === 'restored') {
+      ctx.logger.error(
+        `mcp-client(${opts.serverName}): tool registration failed, previous generation restored: ${String(error)}`,
+      )
+      if (opts.registrationFailure === 'throw') throw error
+      return restoration.disposers
+    }
+    const failure = new Error(
+      `mcp-client(${opts.serverName}): tool registration failed with no restorable previous generation: ${String(error)}`,
+      { cause: error },
+    )
+    ctx.logger.error(failure.message)
+    throw failure
   }
+  generationsByDisposers.set(disposers, { client, definitions: new Map(definitions) })
   return disposers
+}
+
+/**
+ * Restore definitions that produced `previous` after its registrations were
+ * disposed. Definitions are safe to reuse only when they close over the same
+ * client; a previous map from a replaced connection would call a dead client.
+ * @param ctx - Cordis context providing the `tools` service.
+ * @param previous - Disposer map to restore in place.
+ * @param client - Client that is attempting the current synchronization.
+ * @returns The restored map, or an unavailable result when no same-client
+ *   generation exists.
+ */
+function restorePreviousGeneration(ctx: Context, previous: ToolDisposers, client: Client): RestoreResult {
+  const generation = generationsByDisposers.get(previous)
+  previous.clear()
+  if (generation === undefined || generation.client !== client || generation.definitions.size === 0) {
+    generationsByDisposers.delete(previous)
+    return { kind: 'unavailable' }
+  }
+
+  const restored: ToolDisposers = new Map()
+  try {
+    for (const [publicName, definition] of generation.definitions) {
+      restored.set(publicName, ctx.tools.register(definition))
+    }
+  } catch (error) {
+    for (const dispose of restored.values()) dispose()
+    generationsByDisposers.delete(previous)
+    throw new Error(`failed to re-register the previous generation: ${String(error)}`)
+  }
+  for (const [publicName, dispose] of restored) previous.set(publicName, dispose)
+  return { kind: 'restored', disposers: previous }
 }
 
 /** Fields read from canonical content, including policy-owned value replacements. */

@@ -126,7 +126,9 @@ MCP guarantees tool-name uniqueness only [within one server](https://modelcontex
 - A native harness tool named `search` is unaffected.
 - Duplicate `serverName` config fails the later instance at load (see Configuration).
 - A server listing the same tool name twice is an invalid tool list: the sync throws and the previous generation stays registered.
-- A registry conflict during the swap can only mean a foreign tool squats on this server's `mcp__<serverName>__` namespace: the partial generation is rolled back (zero tools from this server) and the error is logged loudly.
+- A registry conflict during the swap can only mean a foreign tool squats on this server's `mcp__<serverName>__` namespace: the partial new generation is rolled back and the error is logged loudly. A same-client re-sync restores the previous generation; an initial sync or a replacement client rejects so the connection supervisor does not mark a conflicted generation healthy.
+
+A remembered disposer map is tied to the `Client` that created its tool definitions. Reusing definitions is safe only for a same-client re-sync; restoring definitions from a replaced client would leave model-facing tools that call a dead transport.
 
 The SDK admits protocol-valid tools, including its modern HTTP header-declaration checks. Registration order does not decide ownership of an admitted name.
 
@@ -209,7 +211,7 @@ Rejected. That couples leaf tools to composite-tool internals and misses future 
 
 Coverage is named per tier; each behavior lives at the cheapest tier that can express it.
 
-- **Unit** (`tests/mcp-client.spec.ts`, `tests/apply.spec.ts`, mocked MCP SDK): the `publicToolName` algorithm (clean, normalize, truncate-and-hash, determinism, distinct-identity separation), raw-vs-public wire discipline, cross-server and native-tool coexistence, duplicate-`serverName` load failure and reservation release, invalid-tool-list rejection, generation swap/rollback, failed-re-sync retention, lossless canonical results, mixed rich ordering, atomic malformed batches, exact capability/store refusal, explicit non-image diagnostics, post-execute policy precedence, cancellation, and config schema validation. 100% per-file coverage gates the package.
+- **Unit** (`tests/mcp-client.spec.ts`, `tests/apply.spec.ts`, mocked MCP SDK): the `publicToolName` algorithm (clean, normalize, truncate-and-hash, determinism, distinct-identity separation), raw-vs-public wire discipline, cross-server and native-tool coexistence, duplicate-`serverName` load failure and reservation release, invalid-tool-list rejection, generation swap/rollback, same-client conflict restoration, cross-generation conflict rejection, stale-generation commit protection, failed-re-sync retention, lossless canonical results, mixed rich ordering, atomic malformed batches, exact capability/store refusal, explicit non-image diagnostics, post-execute policy precedence, cancellation, and config schema validation. 100% per-file coverage gates the package.
 - **E2E** (`tests/mcp-client.e2e.ts`, keyless): the real MCP protocol against the in-repo fixture server, `@modelcontextprotocol/server-everything`, and `@modelcontextprotocol/server-filesystem` over stdio, and against an in-process `StreamableHTTPServerTransport` server over Streamable HTTP — discovery under the namespace, dotted-name normalization end to end, execution round-trips, durable image save/read with base64 retained only in the canonical value, explicit refusal without an image route, duplicate-`serverName` rejection, and disposal.
 - **Snapshot**: the assembled ACP example owns the transport-visible inline-image transcript and the PTC mode image-forwarding transcript; package E2E owns the real MCP wire because the runnable snapshot must stay keyless and deterministic rather than spawning third-party server packages. MCP tool cards still use the generic-card fallback and require no package-specific UI snapshot.
 

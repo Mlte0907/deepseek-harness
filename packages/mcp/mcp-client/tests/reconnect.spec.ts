@@ -210,6 +210,69 @@ describe('reconnect supervisor', () => {
     expect(instances).toHaveLength(2)
   })
 
+  it('does not publish a sync that finishes after its transport closes', async () => {
+    const { errors } = captureLogs(ctx)
+    const config = stdioConfig({ enabled: false })
+    const gate = Promise.withResolvers<ReturnType<typeof listing>>()
+    try {
+      await apply(ctx, config)
+      await vi.waitFor(() => { expect(ctx.tools.get('mcp__srv__remote')).toBeDefined() })
+
+      mockListTools.mockImplementationOnce(() => gate.promise)
+      const handler = mockSetNotificationHandler.mock.calls[0]![1] as () => void
+      handler()
+      await vi.waitFor(() => { expect(mockListTools).toHaveBeenCalledTimes(2) })
+      instances[0]!.onclose?.()
+      gate.resolve(listing('stale'))
+
+      await vi.waitFor(() => {
+        expect(errors.some(line => line.includes('connection generation became stale'))).toBe(true)
+      })
+      expect(ctx.tools.get('mcp__srv__remote')).toBeDefined()
+      expect(ctx.tools.get('mcp__srv__stale')).toBeUndefined()
+    } finally {
+      gate.resolve(listing())
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('does not report a replacement-generation registration conflict as recovered', async () => {
+    const { warns, infos } = captureLogs(ctx)
+    let disposeSquatter: (() => void) | undefined
+    const config = stdioConfig({ initialDelayMs: 2, maxDelayMs: 8, maxAttempts: 1 })
+    try {
+      await apply(ctx, config)
+      await vi.waitFor(() => { expect(ctx.tools.get('mcp__srv__remote')).toBeDefined() })
+
+      disposeSquatter = ctx.tools.register({
+        name: 'mcp__srv__taken',
+        description: 'Squatter',
+        parameters: { type: 'object' },
+        output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value as string }] },
+        execute: async () => 'squatter',
+      })
+      mockListTools.mockResolvedValueOnce({
+        tools: [
+          { name: 'revived', inputSchema: { type: 'object' } },
+          { name: 'taken', inputSchema: { type: 'object' } },
+        ],
+        nextCursor: undefined,
+      })
+      instances[0]!.onclose?.()
+
+      await vi.waitFor(() => {
+        expect(warns.some(line => line.includes('no restorable previous generation'))).toBe(true)
+      })
+      expect(infos.some(line => line.includes('reconnected and re-synced tools'))).toBe(false)
+      expect(ctx.tools.get('mcp__srv__remote')).toBeUndefined()
+      expect(ctx.tools.get('mcp__srv__revived')).toBeUndefined()
+      expect(ctx.tools.get('mcp__srv__taken')).toBeDefined()
+    } finally {
+      disposeSquatter?.()
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('stops at the failure cap, unregisters the tools, and reports final failure', async () => {
     const { warns, errors } = captureLogs(ctx)
     await apply(ctx, stdioConfig({ initialDelayMs: 2, maxDelayMs: 8, maxAttempts: 2 }))

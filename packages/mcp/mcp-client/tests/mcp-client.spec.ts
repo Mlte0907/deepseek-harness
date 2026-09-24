@@ -247,7 +247,7 @@ describe('syncTools', () => {
     expect(ctx.tools.get('mcp__srv__stable')).toBeDefined()
   })
 
-  it('rolls back the whole generation when a foreign tool squats on the namespace', async () => {
+  it('rejects an initial generation when a foreign tool squats on the namespace', async () => {
     // A foreign registration occupies one of this server's public names.
     ctx.tools.register({
       name: 'mcp__srv__taken',
@@ -261,12 +261,173 @@ describe('syncTools', () => {
       { name: 'taken', inputSchema: { type: 'object' } },
     ])
 
-    const disposers = await syncTools(client as never, ctx, defaultOpts, new Map())
+    await expect(syncTools(client as never, ctx, defaultOpts, new Map()))
+      .rejects.toThrow(/no restorable previous generation/)
 
     // All-or-nothing: the non-conflicting tool is rolled back too.
-    expect(disposers.size).toBe(0)
     expect(ctx.tools.get('mcp__srv__free')).toBeUndefined()
     // The squatter is untouched.
+    expect(ctx.tools.get('mcp__srv__taken')).toBeDefined()
+  })
+
+  it('does not publish a generation after its ownership guard closes', async () => {
+    const client = createMockClient([{ name: 'stable', inputSchema: { type: 'object' } }])
+    const first = await syncTools(client as never, ctx, defaultOpts, new Map())
+    client.listTools.mockResolvedValue({ tools: [{ name: 'stale', inputSchema: { type: 'object' } }], nextCursor: undefined })
+
+    await expect(syncTools(client as never, ctx, defaultOpts, first, () => false))
+      .rejects.toThrow(/connection generation became stale/)
+    expect(ctx.tools.get('mcp__srv__stable')).toBeDefined()
+    expect(ctx.tools.get('mcp__srv__stale')).toBeUndefined()
+  })
+
+  it('restores the previous generation when a same-client re-sync swap conflicts', async () => {
+    const client = createMockClient([{ name: 'stable', inputSchema: { type: 'object' } }])
+    const first = await syncTools(client as never, ctx, defaultOpts, new Map())
+    expect(ctx.tools.get('mcp__srv__stable')).toBeDefined()
+
+    ctx.tools.register({
+      name: 'mcp__srv__taken',
+      description: 'Squatter',
+      parameters: { type: 'object' },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value as string }] },
+      execute: async () => 'squatter',
+    })
+    client.listTools.mockResolvedValue({
+      tools: [
+        { name: 'stable', inputSchema: { type: 'object' } },
+        { name: 'taken', inputSchema: { type: 'object' } },
+      ],
+      nextCursor: undefined,
+    })
+
+    const second = await syncTools(client as never, ctx, defaultOpts, first)
+
+    expect(second).toBe(first)
+    expect(ctx.tools.get('mcp__srv__stable')).toBeDefined()
+    expect(ctx.tools.get('mcp__srv__taken')).toBeDefined()
+    const result = await ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('restore-1'), name: 'mcp__srv__stable', arguments: {},
+    })
+    expect(result.isError).toBe(false)
+  })
+
+  it('restores the previous generation before propagating a strict same-client conflict', async () => {
+    const client = createMockClient([{ name: 'stable', inputSchema: { type: 'object' } }])
+    const first = await syncTools(client as never, ctx, defaultOpts, new Map())
+    ctx.tools.register({
+      name: 'mcp__srv__taken',
+      description: 'Squatter',
+      parameters: { type: 'object' },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value as string }] },
+      execute: async () => 'squatter',
+    })
+    client.listTools.mockResolvedValue({
+      tools: [{ name: 'taken', inputSchema: { type: 'object' } }],
+      nextCursor: undefined,
+    })
+
+    await expect(syncTools(client as never, ctx, { ...defaultOpts, registrationFailure: 'throw' }, first))
+      .rejects.toThrow()
+    expect(first.size).toBe(1)
+    expect(ctx.tools.get('mcp__srv__stable')).toBeDefined()
+  })
+
+  it('does not restore definitions from a replaced client after a conflict', async () => {
+    const firstClient = createMockClient([{ name: 'stable', inputSchema: { type: 'object' } }])
+    const first = await syncTools(firstClient as never, ctx, defaultOpts, new Map())
+    const replacement = createMockClient([{ name: 'replacement', inputSchema: { type: 'object' } }])
+    ctx.tools.register({
+      name: 'mcp__srv__taken',
+      description: 'Squatter',
+      parameters: { type: 'object' },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value as string }] },
+      execute: async () => 'squatter',
+    })
+    replacement.listTools.mockResolvedValue({
+      tools: [
+        { name: 'replacement', inputSchema: { type: 'object' } },
+        { name: 'taken', inputSchema: { type: 'object' } },
+      ],
+      nextCursor: undefined,
+    })
+
+    await expect(syncTools(replacement as never, ctx, defaultOpts, first))
+      .rejects.toThrow(/no restorable previous generation/)
+    expect(ctx.tools.get('mcp__srv__stable')).toBeUndefined()
+    expect(ctx.tools.get('mcp__srv__replacement')).toBeUndefined()
+    expect(ctx.tools.get('mcp__srv__taken')).toBeDefined()
+  })
+
+  it('rolls back a same-client restore when an old name is reclaimed', async () => {
+    const client = createMockClient([{ name: 'stable', inputSchema: { type: 'object' } }])
+    const first = await syncTools(client as never, ctx, defaultOpts, new Map())
+    const disposeTaken = ctx.tools.register({
+      name: 'mcp__srv__taken',
+      description: 'Squatter',
+      parameters: { type: 'object' },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value as string }] },
+      execute: async () => 'taken',
+    })
+    let disposeStable: (() => void) | undefined
+    let injectStable = true
+    const removeListener = ctx.on('tools/change', () => {
+      if (!injectStable) return
+      injectStable = false
+      disposeStable = ctx.tools.register({
+        name: 'mcp__srv__stable',
+        description: 'Reclaimer',
+        parameters: { type: 'object' },
+        output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value as string }] },
+        execute: async () => 'reclaimed',
+      })
+    })
+    client.listTools.mockResolvedValue({
+      tools: [
+        { name: 'revived', inputSchema: { type: 'object' } },
+        { name: 'taken', inputSchema: { type: 'object' } },
+      ],
+      nextCursor: undefined,
+    })
+
+    try {
+      await expect(syncTools(client as never, ctx, defaultOpts, first)).rejects.toThrow(/failed to re-register/)
+      expect(ctx.tools.get('mcp__srv__revived')).toBeUndefined()
+      expect(ctx.tools.get('mcp__srv__stable')?.description).toBe('Reclaimer')
+    } finally {
+      removeListener()
+      disposeStable?.()
+      disposeTaken()
+    }
+  })
+
+  it('keeps a valid empty tool list as an intentional removal', async () => {
+    const client = createMockClient([{ name: 'stable', inputSchema: { type: 'object' } }])
+    const first = await syncTools(client as never, ctx, defaultOpts, new Map())
+    client.listTools.mockResolvedValue({ tools: [], nextCursor: undefined })
+
+    const second = await syncTools(client as never, ctx, defaultOpts, first)
+    expect(second.size).toBe(0)
+    expect(ctx.tools.get('mcp__srv__stable')).toBeUndefined()
+  })
+
+  it('rejects a conflict when the same-client previous generation is empty', async () => {
+    const client = createMockClient([])
+    const first = await syncTools(client as never, ctx, defaultOpts, new Map())
+    ctx.tools.register({
+      name: 'mcp__srv__taken',
+      description: 'Squatter',
+      parameters: { type: 'object' },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value as string }] },
+      execute: async () => 'squatter',
+    })
+    client.listTools.mockResolvedValue({
+      tools: [{ name: 'taken', inputSchema: { type: 'object' } }],
+      nextCursor: undefined,
+    })
+
+    await expect(syncTools(client as never, ctx, defaultOpts, first))
+      .rejects.toThrow(/no restorable previous generation/)
     expect(ctx.tools.get('mcp__srv__taken')).toBeDefined()
   })
 

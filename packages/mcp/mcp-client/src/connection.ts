@@ -169,7 +169,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   function enqueueSync(generation: Client, syncOpts: ToolBridgeOptions = opts): Promise<void> {
     const run = syncChain.then(async () => {
       if (!isCurrent(generation)) return
-      disposers = await syncTools(generation, ctx, syncOpts, disposers)
+      disposers = await syncTools(generation, ctx, syncOpts, disposers, () => isCurrent(generation))
     })
     // The chain tail must survive a failed sync; the enqueuing caller owns reporting.
     syncChain = run.catch(() => {})
