@@ -15,8 +15,10 @@ import {
   type Profile,
 } from '@deepseek-ai/dsh-app-boot'
 import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
+import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { bundlePatchPaths, composeEntries } from '@deepseek-ai/dsh-app-boot'
@@ -277,12 +279,36 @@ describe('the shipped Web composition', () => {
     }
   })
 
-  it('supplies both shipped presets, and only those, from the system root', async () => {
+  it('supplies every shipped preset, and only those, from the system root', async () => {
     const listed = await ctx.agentPresets.list()
 
-    expect(listed.map(preset => preset.id).sort()).toEqual(['cordis', 'minimal', 'ptc', 'standard'])
+    expect(listed.map(preset => preset.id).sort()).toEqual(['autonomous', 'cordis', 'minimal', 'ptc', 'standard'])
     expect(listed.every(preset => !('path' in preset))).toBe(true)
     expect(ctx.agentPresets.defaultId).toBe('standard')
+  })
+
+  it('renders every shipped preset persona against the variables the loop registers', async () => {
+    // A persona `{{…}}` reference the loop does not register fails assembly
+    // before the request, so the cost lands on session start rather than one
+    // turn. Enumerating the registry keeps a preset added to the bundle covered
+    // without editing this test.
+    for (const preset of await ctx.agentPresets.list()) {
+      const handle = await ctx.agents.create({
+        // Unique per run: a retried attempt must not collide with the session
+        // its own first attempt persisted.
+        sessionId: SessionId(`preset-persona-render-${preset.id}-${randomUUID()}`),
+        // The registered route, so `{{model}}` and `{{provider}}` carry a value
+        // and the assertion reaches the unknown-reference failure it is for.
+        agentOptions: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        setup: agentCtx => ctx.agentPresets.mount(agentCtx, preset.id).then(() => undefined),
+      })
+      try {
+        const assembly = await ctx.systemPrompt.assemble(assembleContextFor(handle.agent))
+        expect(() => renderPrompt(assembly), `preset ${preset.id} does not render`).not.toThrow()
+      } finally {
+        await handle.dispose()
+      }
+    }
   })
 
   it('composes the full agent from `standard`', async () => {
