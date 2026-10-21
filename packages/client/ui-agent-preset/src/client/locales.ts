@@ -63,12 +63,12 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   presetMinimalDescription:
     'The agent uses a terminal and image reading, with context compaction. Useful for testing and comparing its basic performance.',
   presetAutonomousName: 'Autonomous mode',
-  presetAutonomousExploreName: 'Autonomous · explore',
+  presetAutonomousExploreName: 'Autonomous · explore (subagent)',
   presetAutonomousExploreDescription:
-    'The read-only explorer the autonomous mode delegates breadth to: searches and reads, never modifies.',
-  presetAutonomousJudgeName: 'Autonomous · visual judge',
+    'The read-only explorer the autonomous mode delegates breadth to: searches and reads, never modifies. Used by the explore tool, not a mode to pick.',
+  presetAutonomousJudgeName: 'Autonomous · visual judge (subagent)',
   presetAutonomousJudgeDescription:
-    'The visual acceptance judge the autonomous mode delegates to: opens every image and returns one evidence-backed verdict.',
+    'The visual acceptance judge the autonomous mode delegates to: opens every image and returns one evidence-backed verdict. Used by the judge tool, not a mode to pick.',
   presetAutonomousDescription:
     'Explore first, act on reversible steps, track progress with the todo list, delegate read-only sweeps to subagents, verify before claiming done, and fall back to built-in tools (announced) when third-party services are absent.',
   presetCordisName: 'Creator mode',
@@ -114,12 +114,12 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   presetMinimalName: '极简模式',
   presetMinimalDescription: 'Agent 使用终端和图片读取工具，并支持上下文压缩，适合测试和对比其基础表现。',
   presetAutonomousName: '自主模式',
-  presetAutonomousExploreName: '自主模式 · 探索',
+  presetAutonomousExploreName: '自主模式 · 探索(子代理用)',
   presetAutonomousExploreDescription:
-    '自主模式用来铺开广度的只读探索子代理：只搜只读，绝不改动。',
-  presetAutonomousJudgeName: '自主模式 · 视觉评审',
+    '自主模式用来铺开广度的只读探索子代理：只搜只读，绝不改动。由探索工具自动调用，不是给你选的主模式。',
+  presetAutonomousJudgeName: '自主模式 · 视觉评审(子代理用)',
   presetAutonomousJudgeDescription:
-    '自主模式用来做视觉验收的子代理：每张图自己打开，逐张给出有据可依的结论。',
+    '自主模式用来做视觉验收的子代理：每张图自己打开，逐张给出有据可依的结论。由评审工具自动调用，不是给你选的主模式。',
   presetAutonomousDescription:
     '先探索后动手,可逆步骤自主推进,用任务清单跟踪进度,把只读探索分派给子代理,宣称完成前先验证;第三方服务缺席时回退到本预设内置工具并明示。',
   presetCordisName: '创造模式',
