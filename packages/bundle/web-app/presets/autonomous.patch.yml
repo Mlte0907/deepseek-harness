@@ -17,7 +17,7 @@
 #     delegation story of this mode is "same engine, separate context".
 #   * two dedicated spawn rows give the doctrine its delegation shapes:
 #     `explore` (read-only fan-out searches, its own persona plus a
-#     `toolFilter` removing `edit`/`write`) and `judge` (the same read-only
+#     read-only tool scope) and `judge` (the same read-only
 #     scoping, but the child reads rendered images itself with `read_image`
 #     and returns an evidence-backed verdict per image).
 #   * `tool-plan-mode` sits inside the planning group: the model can propose
@@ -377,58 +377,32 @@
               toolName: subagent_fork
               backgroundMode: continuable
 
-          # `explore` — the read-only fan-out row. `persona` shadows the deployment
-          # persona for every child this row spawns, and `toolFilter` removes the
-          # mutation tools from the child's catalog AND execution — the search-side
-          # guarantee the persona's prose alone cannot make. Tool names must exist in the
-          # child's catalog (`tool-fs` above registers both) or the mount fails loud.
-          # One-shot by default: an exploration returns its report and is done.
+          # `explore` — the dedicated row. 0.2.1 dropped `persona` and `toolFilter`
+          # from a spawn row: the child now picks a registered Agent Preset, and that
+          # preset owns the persona and the tool set. `autonomous-subagents.patch.yml`
+          # declares it — same doctrine, same read-only scope.
           - id: tool-subagent-explore
             name: '@deepseek-ai/dsh-tool-subagent'
             config:
               provider: spawn
               toolName: explore
               backgroundMode: one-shot
-              persona: >-
-                You are a read-only exploration agent. Search, read, and reason; never
-                modify anything: edit and write are removed from you, and bash must stay
-                read-only — no file writes or redirects into files, no commits, no state
-                changes. Ground every claim in what you actually read and cite it as
-                path:line. Answer the prompt you were given and nothing besides; your
-                final message is the only thing returned to the caller, so it must carry
-                the conclusion, the evidence, and enough references to act on — the
-                caller will not re-run your searches.
-              toolFilter:
-                deny:
-                  - edit
-                  - write
-
-          # `judge` — the visual acceptance row. Same read-only scoping as `explore`,
-          # but the persona makes the child READ the images itself (`read_image` is part
-          # of `tool-fs` above) and return one evidence-backed verdict per image, so the
-          # model never grades its own visual output. `read_image` refuses to execute on
-          # a text-only route: judging needs an image-capable child model.
+              agentPreset: autonomous-explore
+              allowedAgentPresets:
+                - autonomous-explore
+          # `judge` — the dedicated row. 0.2.1 dropped `persona` and `toolFilter`
+          # from a spawn row: the child now picks a registered Agent Preset, and that
+          # preset owns the persona and the tool set. `autonomous-subagents.patch.yml`
+          # declares it — same doctrine, same read-only scope.
           - id: tool-subagent-judge
             name: '@deepseek-ai/dsh-tool-subagent'
             config:
               provider: spawn
               toolName: judge
               backgroundMode: one-shot
-              persona: >-
-                You are a visual acceptance judge. You receive image paths and the
-                acceptance criteria; read EVERY image yourself with read_image before
-                judging anything — a screenshot you have not opened is not evidence. For
-                each image return one verdict line: pass or fail, then the issues you
-                can actually see, each tied to what is visible in that image; a clean
-                programmatic check quoted at you is not a verdict. Judge only what is
-                visible; do not speculate about code or causes. Read-only: edit and
-                write are removed from you, and bash must stay read-only. Your final
-                message is the only thing returned to the caller — the verdicts and the
-                evidence are the whole deliverable.
-              toolFilter:
-                deny:
-                  - edit
-                  - write
+              agentPreset: autonomous-judge
+              allowedAgentPresets:
+                - autonomous-judge
           - id: tool-ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
 

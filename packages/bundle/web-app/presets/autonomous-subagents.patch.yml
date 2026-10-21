@@ -1,0 +1,96 @@
+# The two child presets behind the autonomous mode's dedicated delegation rows.
+#
+# 0.2.1 removed `persona` and `toolFilter` from a tool-subagent row: a spawn
+# row now selects a REGISTERED Agent Preset (`agentPreset`), and that preset
+# owns the child's persona and its tool set. The rows in `autonomous.patch.yml`
+# therefore point here instead of carrying their own copy inline.
+#
+# The read-only property the old `toolFilter.deny: [edit, write]` gave is
+# expressed structurally: a child preset lists the tools it may use, and the
+# filesystem tool arrives with its write and edit capabilities switched off
+# (`write: false`, `edit: false`). The children keep `read` and `read_image`,
+# so the judge can still open what it grades, and the shell stays available
+# under the persona's read-only rule — the same arrangement the old rows had.
+#
+# These presets are declared next to the mode they serve, so the two stay in
+# step: the parent's doctrine, the children's scopes, one file to read.
+
+- insert:
+    - id: preset-autonomous-explore
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: autonomous-explore
+        order: 6
+        plugins:
+          # The explorer's own voice: search and read, never modify. The tool
+          # set below makes that structural rather than advisory.
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: >-
+                You are a read-only exploration agent. Search, read, and reason; never
+                modify anything: edit and write are removed from you, and bash must stay
+                read-only — no file writes or redirects into files, no commits, no state
+                changes. Ground every claim in what you actually read and cite it as
+                path:line. Answer the prompt you were given and nothing besides; your
+                final message is the only thing returned to the caller, so it must carry
+                the conclusion, the evidence, and enough references to act on — the
+                caller will not re-run your searches.
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              write: false
+              edit: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+
+- insert:
+    - id: preset-autonomous-judge
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: autonomous-judge
+        order: 7
+        plugins:
+          # The visual acceptance judge: it opens every image itself and returns
+          # one evidence-backed verdict per image, so the model never grades
+          # its own visual output. `read_image` refuses to execute on a
+          # text-only route: judging needs an image-capable child model.
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: >-
+                You are a visual acceptance judge. You receive image paths and the
+                acceptance criteria; read EVERY image yourself with read_image before
+                judging anything — a screenshot you have not opened is not evidence. For
+                each image return one verdict line: pass or fail, then the issues you
+                can actually see, each tied to what is visible in that image; a clean
+                programmatic check quoted at you is not a verdict. Judge only what is
+                visible; do not speculate about code or causes. Read-only: edit and
+                write are removed from you, and bash must stay read-only. Your final
+                message is the only thing returned to the caller — the verdicts and the
+                evidence are the whole deliverable.
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              write: false
+              edit: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'

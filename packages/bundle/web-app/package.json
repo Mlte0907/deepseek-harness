@@ -51,7 +51,8 @@
         "./presets/ptc.patch.yml",
         "./presets/minimal.patch.yml",
         "./presets/cordis.patch.yml",
-        "./presets/autonomous.patch.yml"
+        "./presets/autonomous.patch.yml",
+        "./presets/autonomous-subagents.patch.yml"
       ]
     }
   },
